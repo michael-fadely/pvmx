@@ -395,7 +395,7 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 				case DictionaryField::Dimensions:
 					read_t(in_file, entry.width);
 					read_t(in_file, entry.height);
-					continue;
+					break;
 
 				default:
 					break;
