@@ -1,65 +1,103 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <string>
-#include <shlwapi.h>
+#include <Shlwapi.h>
 
 #pragma comment(lib, "Shlwapi.lib")
 
 #include "FileSystem.h"
 
-bool Exists(const std::wstring& path)
-{
-	return PathFileExistsW(path.c_str()) != 0;
-}
-bool Exists(const std::string& path)
+bool filesystem::exists(const std::string& path)
 {
 	return PathFileExistsA(path.c_str()) != 0;
 }
 
-bool IsDirectory(const std::wstring& path)
-{
-	return PathIsDirectoryW(path.c_str()) != 0;
-}
-bool IsDirectory(const std::string& path)
+bool filesystem::is_directory(const std::string& path)
 {
 	return PathIsDirectoryA(path.c_str()) != 0;
 }
 
-bool IsFile(const std::wstring& path)
+bool filesystem::is_file(const std::string& path)
 {
-	return !IsDirectory(path);
-}
-bool IsFile(const std::string& path)
-{
-	return !IsDirectory(path);
+	return !is_directory(path);
 }
 
-std::string GetDirectory(const std::string& path)
+bool filesystem::remove_all(const std::string& path)
 {
-	std::string result;
-	auto npos = path.npos;
+	WIN32_FIND_DATAA find_data {};
 
+	const std::string str_search = combine_path(path, "*.*");
+	HANDLE find_handle = FindFirstFileA(str_search.c_str(), &find_data);
+
+	if (find_handle == INVALID_HANDLE_VALUE)
+	{
+		return false;
+	}
+
+	do
+	{
+		const std::string file_name = find_data.cFileName;
+
+		if (file_name == "." || file_name == "..")
+		{
+			continue;
+		}
+
+		const std::string file_path = combine_path(path, find_data.cFileName);
+
+		if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		{
+			remove_all(file_path);
+		}
+		else
+		{
+			remove(file_path);
+		}
+
+	} while (FindNextFileA(find_handle, &find_data) == TRUE);
+
+	FindClose(find_handle);
+	return remove(path);
+}
+
+bool filesystem::remove(const std::string& path)
+{
+	if (!exists(path))
+	{
+		return false;
+	}
+
+	if (is_directory(path))
+	{
+		return !!RemoveDirectoryA(path.c_str());
+	}
+
+	return !!DeleteFileA(path.c_str());
+}
+
+std::string filesystem::get_directory(const std::string& path)
+{
+	const auto npos = std::string::npos;
 	auto slash = path.find_last_of('\\');
+
 	if (slash == npos)
 	{
 		slash = path.find_last_of('/');
 
 		if (slash == npos)
 		{
-			result = "";
-			return result;
+			return std::string();
 		}
 	}
 
 	if (slash != path.size() - 1)
 	{
-		result = path.substr(0, slash);
-		return result;
+		return path.substr(0, slash);
 	}
 
-	auto last = slash;
-
+	const auto last = slash;
 	slash = path.find_last_of('\\', last);
+
 	if (slash == npos)
 	{
 		slash = path.find_last_of('/', last);
@@ -67,52 +105,57 @@ std::string GetDirectory(const std::string& path)
 
 	if (slash == npos)
 	{
-		result = "";
-		return result;
+		return std::string();
 	}
 
-	result = path.substr(last);
-	return result;
+	return path.substr(last);
 }
 
-std::string GetBaseName(const std::string& path)
+bool filesystem::create_directory(const std::string& path)
 {
-	std::string result;
-	auto npos = path.npos;
+	return !!CreateDirectoryA(path.c_str(), nullptr);
+}
 
+std::string filesystem::get_base_name(const std::string& path)
+{
+	const auto npos = std::string::npos;
 	auto slash = path.find_last_of('\\');
+
 	if (slash == npos)
 	{
 		slash = path.find_last_of('/');
 		if (slash == npos)
 		{
-			result = path;
-			return result;
+			return path;
 		}
 	}
 
 	if (slash != path.size() - 1)
 	{
-		result = path.substr(++slash);
-		return result;
+		return path.substr(++slash);
 	}
 
-	auto last = slash - 1;
-
+	const auto last = slash - 1;
 	slash = path.find_last_of('\\', last);
+
 	if (slash == npos)
 	{
 		slash = path.find_last_of('/', last);
 	}
 
-	result = (!slash || slash == npos) ? "" : path.substr(slash + 1, last - slash);
-	return result;
+	if (!slash || slash == npos)
+	{
+		return std::string();
+	}
+
+	return path.substr(slash + 1, last - slash);
 }
 
-void StripExtension(std::string& path)
+void filesystem::strip_extension(std::string& path)
 {
-	auto dot = path.find('.');
-	if (dot == path.npos)
+	const auto dot = path.find('.');
+
+	if (dot == std::string::npos)
 	{
 		return;
 	}
@@ -120,15 +163,16 @@ void StripExtension(std::string& path)
 	path = path.substr(0, dot);
 }
 
-std::string GetExtension(const std::string& path, bool includeDot)
+std::string filesystem::get_extension(const std::string& path, bool include_dot)
 {
 	auto dot = path.find('.');
-	if (dot == path.npos)
+
+	if (dot == std::string::npos)
 	{
-		return "";
+		return std::string();
 	}
 
-	if (!includeDot)
+	if (!include_dot)
 	{
 		++dot;
 	}
@@ -136,32 +180,33 @@ std::string GetExtension(const std::string& path, bool includeDot)
 	return path.substr(dot);
 }
 
-std::string GetWorkingDirectory()
+std::string filesystem::get_working_directory()
 {
-	auto length = GetCurrentDirectoryA(0, nullptr);
+	const auto length = GetCurrentDirectoryA(0, nullptr);
 
 	if (length < 1)
 	{
-		return "";
+		return std::string();
 	}
 
-	auto buffer = new char[length];
+	const auto buffer = new char[length];
+
 	GetCurrentDirectoryA(length, buffer);
-	std::string str = buffer;
+	std::string result(buffer);
 	delete[] buffer;
-	return str;
+
+	return result;
 }
 
-std::string CombinePath(const std::string& pathA, const std::string& pathB)
+std::string filesystem::combine_path(const std::string& path_a, const std::string& path_b)
 {
-	char buffer[MAX_PATH] = {};
-	auto result = PathCombineA(buffer, pathA.c_str(), pathB.c_str());
+	char buffer[MAX_PATH] {};
+	LPSTR result = PathCombineA(buffer, path_a.c_str(), path_b.c_str());
 
 	if (result == nullptr)
 	{
-		return "";
+		return std::string();
 	}
 
-	std::string str = result;
-	return str;
+	return std::string(result);
 }

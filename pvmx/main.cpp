@@ -11,36 +11,33 @@
 
 #include "FileSystem.h"
 
-#define long int64_t
-
-using ulong  = uint64_t;
+using int64  = int64_t;
+using uint64 = uint64_t;
 using uint   = uint32_t;
 using ushort = uint16_t;
 using byte   = int8_t;
 using ubyte  = uint8_t;
 
-static_assert(sizeof(ulong) == sizeof(long), "long size mismatch");
-static_assert(sizeof(long) == 8, "long size mismatch");
-static_assert(sizeof(uint) == sizeof(int), "int size mismatch");
-static_assert(sizeof(ushort) == sizeof(short), "short size mismatch");
-
 constexpr int PVMX_FOURCC = 'XMVP';
 static const ubyte PVMX_VERSION = 1;
 
+constexpr auto npos = std::string::npos;
+
 struct TexPackEntry
 {
-	uint32_t globalIndex;
+	uint32_t    globalIndex = 0;
 	std::string name;
-	uint32_t width, height;
+	uint32_t    width  = 0;
+	uint32_t    height = 0;
 };
 
 struct DictionaryEntry : TexPackEntry
 {
-	ulong offset;
-	ulong size;
+	uint64 offset = 0;
+	uint64 size = 0;
 };
 
-namespace DictionaryField
+namespace dictionary_field
 {
 	enum _ : ubyte
 	{
@@ -53,17 +50,16 @@ namespace DictionaryField
 		Dimensions,
 	};
 
-	static_assert(sizeof(None) == sizeof(ubyte), "DictionaryField size mismatch");
+	static_assert(sizeof(None) == sizeof(ubyte), "dictionary_field size mismatch");
 }
 
 static void usage()
 {
 	using namespace std;
 
-	cout
-		<< "Usage:" << endl
-		<< "\t-c, --create     Create an archive using the given texture pack index."        << endl
-		<< "\t-e, --extract    Extract an archive."                                          << endl
+	cout << "Usage:" << endl
+		<< "\t-c, --create     Create an archive using the given texture pack index." << endl
+		<< "\t-e, --extract    Extract an archive." << endl
 		<< "\t-o, --output     Output file for creation or output directory for extraction." << endl;
 }
 
@@ -89,6 +85,7 @@ void read_cstr(std::ifstream& file, std::string& out)
 	{
 		char c;
 		read_t(file, c);
+
 		if (c == '\0')
 		{
 			break;
@@ -108,16 +105,16 @@ static void create_archive(const std::string& input_path, const std::string& out
 
 	string _input_path;
 
-	if (DirectoryExists(input_path))
+	if (filesystem::directory_exists(input_path))
 	{
-		_input_path = move(CombinePath(input_path, "index.txt"));
+		_input_path = filesystem::combine_path(input_path, "index.txt");
 	}
 	else
 	{
-		_input_path = move(input_path);
+		_input_path = input_path;
 	}
 
-	if (!FileExists(_input_path))
+	if (!filesystem::file_exists(_input_path))
 	{
 		cout << "File not found: " << input_path << endl;
 		return;
@@ -135,13 +132,14 @@ static void create_archive(const std::string& input_path, const std::string& out
 
 	if (output_path.empty())
 	{
-		auto path = move(CombinePath(GetWorkingDirectory(), _input_path));
-		auto dir = move(GetDirectory(path));
-		_output_path = move(CombinePath(GetDirectory(dir), GetBaseName(dir) + ".pvmx"));
+		const auto path = filesystem::combine_path(filesystem::get_working_directory(), _input_path);
+		const auto dir  = filesystem::get_directory(path);
+
+		_output_path = filesystem::combine_path(filesystem::get_directory(dir), filesystem::get_base_name(dir) + ".pvmx");
 	}
 	else
 	{
-		_output_path = move(output_path);
+		_output_path = output_path;
 	}
 
 	ofstream out_file(_output_path, ios::out | ios::binary);
@@ -177,69 +175,69 @@ static void create_archive(const std::string& input_path, const std::string& out
 
 			size_t comma = line.find(',');
 
-			if (comma < 1 && comma != line.npos)
+			if (comma < 1)
 			{
 				printf("Invalid texture index entry on line %u (missing comma?)\n", line_number);
 				return;
 			}
 
-			uint width = 0;
+			uint width  = 0;
 			uint height = 0;
 
 			uint gbix = stoul(line.substr(0, comma));
-			auto name = line.substr(comma + 1);
+			string name = line.substr(comma + 1);
 
 			comma = name.find(',');
 
 			// check for an additional texture dimensions field
-			if (comma != name.npos && comma > 0)
+			if (comma != npos && comma > 0)
 			{
-				auto tmp = name;
+				string tmp = name;
 				name = tmp.substr(0, comma);
 
-				auto dimensions = tmp.substr(++comma);
-				size_t separator = dimensions.find('x');
+				string dimensions = tmp.substr(++comma);
+				size_t separator  = dimensions.find('x');
 
 				// If no 'x' separator is found, try capital
-				if (!separator || separator == dimensions.npos)
+				if (!separator || separator == npos)
 				{
 					separator = dimensions.find('X');
 				}
 
-				if (!separator || separator == dimensions.npos)
+				if (!separator || separator == npos)
 				{
 					printf("Invalid format for texture dimensions on line %u: %s\n",
-						line_number, dimensions.c_str());
+					       line_number, dimensions.c_str());
 					return;
 				}
 
-				width = stoul(dimensions.substr(0, separator));
+				width  = stoul(dimensions.substr(0, separator));
 				height = stoul(dimensions.substr(++separator));
 			}
 
 			files.push_back(name);
 
-			write_t(out_file, DictionaryField::GlobalIndex);
+			write_t(out_file, dictionary_field::GlobalIndex);
 			write_t(out_file, gbix);
 
-			write_t(out_file, DictionaryField::Name);
+			write_t(out_file, dictionary_field::Name);
 			out_file << name << '\0';
 
 			if (width || height)
 			{
-				write_t(out_file, DictionaryField::Dimensions);
+				write_t(out_file, dictionary_field::Dimensions);
 				write_t(out_file, width);
 				write_t(out_file, height);
 			}
 
-			write_t(out_file, DictionaryField::None);
+			write_t(out_file, dictionary_field::None);
 
 			dict_offsets.push_back(out_file.tellp());
 
 			// Offset (to be populated later)
-			write_t(out_file, static_cast<ulong>(0));
+			write_t(out_file, static_cast<uint64>(0));
 			// Size (to be populated later)
-			write_t(out_file, static_cast<ulong>(0));
+			write_t(out_file, static_cast<uint64>(0));
 		}
 		catch (exception& exception)
 		{
@@ -247,28 +245,29 @@ static void create_archive(const std::string& input_path, const std::string& out
 			return;
 		}
 	}
-	
+
 	// Dictionary element starting with 0 marks the end of dictionary.
-	write_t(out_file, DictionaryField::None);
+	write_t(out_file, dictionary_field::None);
 
 	// Tracks file offsets (first) and sizes (second)
 	unordered_map<string, pair<size_t, size_t>> file_meta;
 
-	string dir = GetDirectory(_input_path);
+	const string dir = filesystem::get_directory(_input_path);
 
 	char buffer[4096] = {};
 	static_assert(sizeof(buffer) == 4096, "nope");
 
 	// Write file data to the data section of the archive
-	for (size_t i = 0; i < files.size(); i++)
+	for (const auto& file : files)
 	{
-		auto it = file_meta.find(files[i]);
+		const auto it = file_meta.find(file);
+
 		if (it != file_meta.end())
 		{
 			continue;
 		}
 
-		auto path = move(CombinePath(dir, files[i]));
+		const string path = filesystem::combine_path(dir, file);
 		ifstream in_file(path, ios::in | ios::binary | ios::ate);
 
 		if (!in_file.is_open())
@@ -278,12 +277,13 @@ static void create_archive(const std::string& input_path, const std::string& out
 		}
 
 		auto size = static_cast<size_t>(in_file.tellg());
-		file_meta[files[i]] = make_pair(static_cast<size_t>(out_file.tellp()), size);
+
+		file_meta[file] = make_pair(static_cast<size_t>(out_file.tellp()), size);
 		in_file.seekg(0);
 
 		while (!in_file.eof())
 		{
-			auto start = static_cast<size_t>(in_file.tellg());
+			const auto start = static_cast<size_t>(in_file.tellg());
 
 			if (start == size)
 			{
@@ -291,8 +291,10 @@ static void create_archive(const std::string& input_path, const std::string& out
 			}
 
 			in_file.read(buffer, min(sizeof(buffer), size - start));
-			auto end = static_cast<size_t>(in_file.tellg());
-			auto delta = end - start;
+
+			const auto end   = static_cast<size_t>(in_file.tellg());
+			const auto delta = end - start;
+
 			out_file.write(buffer, delta);
 		}
 	}
@@ -303,7 +305,7 @@ static void create_archive(const std::string& input_path, const std::string& out
 		out_file.seekp(dict_offsets[i]);
 
 		auto& pair = file_meta[files[i]];
-		write_t(out_file, pair.first); // offset
+		write_t(out_file, pair.first);  // offset
 		write_t(out_file, pair.second); // size
 	}
 }
@@ -324,19 +326,20 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 
 	if (output_path.empty())
 	{
-		auto path = move(CombinePath(GetWorkingDirectory(), input_path));
-		auto dir  = move(GetDirectory(path));
-		auto name = move(GetBaseName(path));
-		StripExtension(name);
+		const string path = filesystem::combine_path(filesystem::get_working_directory(), input_path);
+		const string dir  = filesystem::get_directory(path);
 
-		_output_path = move(CombinePath(dir, name));
+		string name = filesystem::get_base_name(path);
+		filesystem::strip_extension(name);
+
+		_output_path = filesystem::combine_path(dir, name);
 	}
 	else
 	{
-		_output_path = move(output_path);
+		_output_path = output_path;
 	}
 
-	if (!DirectoryExists(_output_path))
+	if (!filesystem::directory_exists(_output_path))
 	{
 		if (!CreateDirectoryA(_output_path.c_str(), nullptr))
 		{
@@ -345,7 +348,7 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 		}
 	}
 
-	auto index_path = CombinePath(_output_path, "index.txt");
+	const string index_path = filesystem::combine_path(_output_path, "index.txt");
 	ofstream index_file(index_path);
 
 	if (!index_file.is_open())
@@ -376,23 +379,23 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 	ubyte type = 0;
 	vector<DictionaryEntry> entries;
 
-	for (read_t(in_file, type); type != DictionaryField::None; read_t(in_file, type))
+	for (read_t(in_file, type); type != dictionary_field::None; read_t(in_file, type))
 	{
 		DictionaryEntry entry = {};
 
-		while (type != DictionaryField::None)
+		while (type != dictionary_field::None)
 		{
 			switch (type)
 			{
-				case DictionaryField::GlobalIndex:
+				case dictionary_field::GlobalIndex:
 					read_t(in_file, entry.globalIndex);
 					break;
 
-				case DictionaryField::Name:
+				case dictionary_field::Name:
 					read_cstr(in_file, entry.name);
 					break;
 
-				case DictionaryField::Dimensions:
+				case dictionary_field::Dimensions:
 					read_t(in_file, entry.width);
 					read_t(in_file, entry.height);
 					break;
@@ -410,6 +413,7 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 		entries.push_back(entry);
 
 		int n = 0;
+
 		if (entry.globalIndex)
 		{
 			index_file << entry.globalIndex;
@@ -446,8 +450,9 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 	{
 		cout << "Extracting: " << i.name << endl;
 
-		auto path = move(CombinePath(_output_path, i.name));
+		const string path = filesystem::combine_path(_output_path, i.name);
 		ofstream out_file(path, ios::binary | ios::out);
+
 		if (!out_file.is_open())
 		{
 			cout << "Unable to open output file: " << path << endl;
@@ -455,15 +460,18 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 		}
 
 		in_file.seekg(i.offset);
-		auto position = static_cast<ulong>(in_file.tellg());
+		auto position = static_cast<uint64>(in_file.tellg());
 		const auto end = i.offset + i.size;
 
 		while (position < end)
 		{
-			auto start = position;
-			in_file.read(buffer, min(static_cast<ulong>(sizeof(buffer)), end - start));
-			position = static_cast<ulong>(in_file.tellg());
-			auto delta = position - start;
+			const auto start = position;
+
+			in_file.read(buffer, min(static_cast<uint64>(sizeof(buffer)), end - start));
+			position = static_cast<uint64>(in_file.tellg());
+			
+			const auto delta = position - start;
+
 			out_file.write(buffer, delta);
 		}
 	}
@@ -479,15 +487,16 @@ int main(int argc, char** argv)
 		return 0;
 	}
 
-	bool create = false;
+	bool create  = false;
 	bool extract = false;
 
 	string input_path;
 	string output_path;
 
-	for (size_t i = 1; i < argc; i++)
+	for (int i = 1; i < argc; i++)
 	{
-		auto arg = argv[i];
+		const auto arg = argv[i];
+
 		if (!_strcmpi("--help", arg) || !_strcmpi("-h", arg) || !_strcmpi("-?", arg))
 		{
 			usage();
@@ -498,7 +507,8 @@ int main(int argc, char** argv)
 		{
 			if (++i >= argc)
 			{
-				throw;
+				cout << "--create: no input path specified." << endl;
+				return -1;
 			}
 
 			create = true;
@@ -510,7 +520,8 @@ int main(int argc, char** argv)
 		{
 			if (++i >= argc)
 			{
-				throw;
+				cout << "--extract: no input path specified." << endl;
+				return -1;
 			}
 
 			extract = true;
@@ -522,7 +533,8 @@ int main(int argc, char** argv)
 		{
 			if (++i >= argc)
 			{
-				throw;
+				cout << "--output: no output path specified." << endl;
+				return -1;
 			}
 
 			output_path = argv[i];

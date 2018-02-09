@@ -1,36 +1,28 @@
 #pragma once
 #include <string>
 
-bool Exists(const std::wstring& path);
-bool Exists(const std::string& path);
-
-bool IsDirectory(const std::wstring& path);
-bool IsDirectory(const std::string& path);
-
-bool IsFile(const std::wstring& path);
-bool IsFile(const std::string& path);
-
-inline bool DirectoryExists(const std::wstring& path)
+namespace filesystem
 {
-	return Exists(path) && IsDirectory(path);
-}
-inline bool DirectoryExists(const std::string& path)
-{
-	return Exists(path) && IsDirectory(path);
-}
+	bool exists(const std::string& path);
+	bool is_directory(const std::string& path);
+	bool is_file(const std::string& path);
 
-inline bool FileExists(const std::wstring& path)
-{
-	return Exists(path) && IsFile(path);
-}
-inline bool FileExists(const std::string& path)
-{
-	return Exists(path) && IsFile(path);
-}
+	inline bool directory_exists(const std::string& path)
+	{
+		return exists(path) && is_directory(path);
+	}
+	inline bool file_exists(const std::string& path)
+	{
+		return exists(path) && is_file(path);
+	}
 
-std::string GetDirectory(const std::string& path);
-std::string GetBaseName(const std::string& path);
-void StripExtension(std::string& path);
-std::string GetExtension(const std::string& path, bool includeDot = false);
-std::string GetWorkingDirectory();
-std::string CombinePath(const std::string& pathA, const std::string& pathB);
+	std::string get_directory(const std::string& path);
+	bool create_directory(const std::string& path);
+	bool remove_all(const std::string& path);
+	bool remove(const std::string& path);
+	std::string get_base_name(const std::string& path);
+	void strip_extension(std::string& path);
+	std::string get_extension(const std::string& path, bool include_dot = false);
+	std::string get_working_directory();
+	std::string combine_path(const std::string& path_a, const std::string& path_b);
+}
