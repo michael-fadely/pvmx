@@ -160,7 +160,7 @@ void filesystem::strip_extension(std::string& path)
 		return;
 	}
 
-	path = path.substr(0, dot);
+	path.resize(dot);
 }
 
 std::string filesystem::get_extension(const std::string& path, bool include_dot)
