@@ -25,7 +25,7 @@ constexpr auto npos = std::string::npos;
 
 struct TexPackEntry
 {
-	uint32_t    globalIndex = 0;
+	uint32_t    global_index = 0;
 	std::string name;
 	uint32_t    width  = 0;
 	uint32_t    height = 0;
@@ -41,16 +41,22 @@ namespace dictionary_field
 {
 	enum _ : ubyte
 	{
-		None,
-		// 32-bit integer global index
-		GlobalIndex,
-		// Null-terminated file name
-		Name,
-		// Two 32-bit integers defining width and height
-		Dimensions,
+		none,
+		/**
+		 * \brief 32-bit integer global index
+		 */
+		global_index,
+		/**
+		 * \brief Null-terminated file name
+		 */
+		name,
+		/**
+		 * \brief Two 32-bit integers defining width and height
+		 */
+		dimensions,
 	};
 
-	static_assert(sizeof(None) == sizeof(ubyte), "dictionary_field size mismatch");
+	static_assert(sizeof(none) == sizeof(ubyte), "dictionary_field size mismatch");
 }
 
 static void usage()
@@ -217,20 +223,20 @@ static void create_archive(const std::string& input_path, const std::string& out
 
 			files.push_back(name);
 
-			write_t(out_file, dictionary_field::GlobalIndex);
+			write_t(out_file, dictionary_field::global_index);
 			write_t(out_file, gbix);
 
-			write_t(out_file, dictionary_field::Name);
+			write_t(out_file, dictionary_field::name);
 			out_file << name << '\0';
 
 			if (width || height)
 			{
-				write_t(out_file, dictionary_field::Dimensions);
+				write_t(out_file, dictionary_field::dimensions);
 				write_t(out_file, width);
 				write_t(out_file, height);
 			}
 
-			write_t(out_file, dictionary_field::None);
+			write_t(out_file, dictionary_field::none);
 
 			dict_offsets.push_back(out_file.tellp());
 
@@ -247,7 +253,7 @@ static void create_archive(const std::string& input_path, const std::string& out
 	}
 
 	// Dictionary element starting with 0 marks the end of dictionary.
-	write_t(out_file, dictionary_field::None);
+	write_t(out_file, dictionary_field::none);
 
 	// Tracks file offsets (first) and sizes (second)
 	unordered_map<string, pair<size_t, size_t>> file_meta;
@@ -376,26 +382,26 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 		return;
 	}
 
-	ubyte type = 0;
 	vector<DictionaryEntry> entries;
+	ubyte type = 0;
 
-	for (read_t(in_file, type); type != dictionary_field::None; read_t(in_file, type))
+	for (read_t(in_file, type); type != dictionary_field::none; read_t(in_file, type))
 	{
 		DictionaryEntry entry = {};
 
-		while (type != dictionary_field::None)
+		while (type != dictionary_field::none)
 		{
 			switch (type)
 			{
-				case dictionary_field::GlobalIndex:
-					read_t(in_file, entry.globalIndex);
+				case dictionary_field::global_index:
+					read_t(in_file, entry.global_index);
 					break;
 
-				case dictionary_field::Name:
+				case dictionary_field::name:
 					read_cstr(in_file, entry.name);
 					break;
 
-				case dictionary_field::Dimensions:
+				case dictionary_field::dimensions:
 					read_t(in_file, entry.width);
 					read_t(in_file, entry.height);
 					break;
@@ -414,9 +420,9 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 
 		int n = 0;
 
-		if (entry.globalIndex)
+		if (entry.global_index)
 		{
-			index_file << entry.globalIndex;
+			index_file << entry.global_index;
 			++n;
 		}
 
