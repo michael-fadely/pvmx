@@ -5,7 +5,7 @@
 
 #pragma comment(lib, "Shlwapi.lib")
 
-#include "FileSystem.h"
+#include "filesystem.h"
 
 bool filesystem::exists(const std::string& path)
 {
