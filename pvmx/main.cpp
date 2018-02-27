@@ -387,6 +387,7 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 
 	for (read_t(in_file, type); type != dictionary_field::none; read_t(in_file, type))
 	{
+		bool has_gbix = false;
 		DictionaryEntry entry = {};
 
 		while (type != dictionary_field::none)
@@ -395,6 +396,7 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 			{
 				case dictionary_field::global_index:
 					read_t(in_file, entry.global_index);
+					has_gbix = true;
 					break;
 
 				case dictionary_field::name:
@@ -420,7 +422,7 @@ static void extract_archive(const std::string& input_path, const std::string& ou
 
 		int n = 0;
 
-		if (entry.global_index)
+		if (has_gbix)
 		{
 			index_file << entry.global_index;
 			++n;
